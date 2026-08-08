@@ -4,703 +4,280 @@ import {
   REST,
   Routes,
   SlashCommandBuilder,
-  PermissionFlagsBits,
   ChannelType,
-  OverwriteType
+  PermissionFlagsBits,
+  EmbedBuilder
 } from "discord.js";
 
 const token = process.env.DISCORD_TOKEN;
 const guildId = process.env.GUILD_ID;
 
 if (!token || !guildId) {
-  throw new Error("Faltan DISCORD_TOKEN o GUILD_ID en las variables de entorno.");
+  throw new Error("Faltan DISCORD_TOKEN o GUILD_ID en Render.");
 }
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers
+  ]
 });
 
-const command = new SlashCommandBuilder()
-  .setName("setup")
-  .setDescription("Crea la estructura competitiva de Kage.")
-  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
+// ==========================
+// COMANDO /TICKET
+// ==========================
+
+const ticketCommand = new SlashCommandBuilder()
+  .setName("ticket")
+  .setDescription("Crea un ticket privado de soporte.");
+
+// ==========================
+// REGISTRAR COMANDO
+// ==========================
 
 async function registerCommand() {
   const rest = new REST({ version: "10" }).setToken(token);
+
   await rest.put(
     Routes.applicationGuildCommands(client.user.id, guildId),
-    { body: [command.toJSON()] }
-  );
-}
-
-const roleSpecs = [
-  ["OWNER", 0x111111],
-  ["DIRECTOR", 0x6f42c1],
-  ["ADMIN", 0xc0392b],
-  ["MODERATOR", 0x2980b9],
-  ["HELPER", 0x27ae60],
-  ["TOURNAMENT STAFF", 0xf39c12],
-  ["COMPETITIVE", 0xe74c3c],
-  ["BOOSTER", 0x9b59b6],
-  ["PLAYER", 0x3498db],
-  ["MEMBER", 0x95a5a6]
-];
-
-const structure = [
-  {
-    name: "⛩️・ENTRADA",
-    channels: [
-      ["👋・bienvenida", "text"],
-      ["📜・reglas", "text"],
-      ["✅・verificacion", "text"],
-      ["📢・anuncios", "text"],
-      ["🎭・roles", "text"]
-    ]
-  },
-  {
-    name: "⚔️・COMPETITIVE",
-    channels: [
-      ["💬・chat-competitive", "text"],
-      ["🎯・buscando-team", "text"],
-      ["🏆・torneos", "text"],
-      ["📊・rankings", "text"],
-      ["📋・resultados", "text"],
-      ["🔥・clips", "text"]
-    ]
-  },
-  {
-    name: "🎮・COMMUNITY",
-    channels: [
-      ["💭・general", "text"],
-      ["😂・memes", "text"],
-      ["📸・media", "text"],
-      ["🎵・musica", "text"]
-    ]
-  },
-  {
-    name: "🎧・VOICE",
-    channels: [
-      ["🔊・Lobby", "voice"],
-      ["⚔️・Competitive I", "voice"],
-      ["⚔️・Competitive II", "voice"],
-      ["🏆・Tournament", "voice"],
-      ["💤・AFK", "voice"]
-    ]
-  },
-  {
-    name: "🛠️・SUPPORT",
-    channels: [
-      ["🎫・tickets", "text"],
-      ["❓・soporte", "text"],
-      ["🚨・reportes", "text"]
-    ]
-  },
-  {
-    name: "🔒・STAFF",
-    staffOnly: true,
-    channels: [
-      ["💼・staff-chat", "text"],
-      ["📋・logs", "text"],
-      ["⚖️・sanciones", "text"],
-      ["🚨・staff-reports", "text"]
-    ]
-  }
-];
-
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-async function ensureRole(guild, name, color) {
-  let role = guild.roles.cache.find(r => r.name === name);
-  if (!role) role = await guild.roles.create({ name, color, reason: "Kage setup" });
-  return role;
-}
-
-async function ensureCategory(guild, name, staffOnly, staffRole) {
-  let category = guild.channels.cache.find(
-    c => c.type === ChannelType.GuildCategory && c.name === name
-  );
-
-  if (!category) {
-    category = await guild.channels.create({
-      name,
-      type: ChannelType.GuildCategory,
-      reason: "Kage setup"
-    });
-  }
-
-  if (staffOnly && staffRole) {
-    await category.permissionOverwrites.edit(guild.roles.everyone, {
-      ViewChannel: false
-    });
-    await category.permissionOverwrites.edit(staffRole, {
-      ViewChannel: true,
-      SendMessages: true
-    });
-  }
-
-  return category;
-}
-
-async function ensureChannel(guild, category, name, kind, staffOnly, staffRole) {
-  let channel = guild.channels.cache.find(
-    c => c.parentId === category.id && c.name === name
-  );
-
-  if (!channel) {
-    channel = await guild.channels.create({
-      name,
-      type: kind === "voice" ? ChannelType.GuildVoice : ChannelType.GuildText,
-      parent: category.id,
-      reason: "Kage setup"
-    });
-  }
-
-  if (staffOnly && staffRole && channel.type === ChannelType.GuildText) {
-    await channel.permissionOverwrites.edit(guild.roles.everyone, {
-      ViewChannel: false
-    });
-    await channel.permissionOverwrites.edit(staffRole, {
-      ViewChannel: true,
-      SendMessages: true,
-      ReadMessageHistory: true
-    });
-  }
-
-  return channel;
-}
-
-async function setupGuild(guild) {
-  const roles = {};
-  for (const [name, color] of roleSpecs) {
-    roles[name] = await ensureRole(guild, name, color);
-    await sleep(150);
-  }
-
-  const staffRole = roles["ADMIN"];
-
-  for (const section of structure) {
-    const category = await ensureCategory(guild, section.name, section.staffOnly, staffRole);
-
-    for (const [name, kind] of section.channels) {
-      await ensureChannel(
-        guild,
-        category,
-        name,
-        kind,
-        section.staffOnly,
-        staffRole
-      );
-      await sleep(150);
+    {
+      body: [ticketCommand.toJSON()]
     }
-  }
+  );
 
-  return roles;
+  console.log("Comando /ticket registrado.");
 }
+
+// ==========================
+// BOT CONECTADO
+// ==========================
 
 client.once("ready", async () => {
-  console.log(`Conectado como ${client.user.tag}`);
+  console.log(`✅ Conectado como ${client.user.tag}`);
+
   await registerCommand();
-  console.log("Comando /setup registrado.");
+
+  console.log("🤖 Bot listo.");
 });
+
+// ==========================
+// 👋 BIENVENIDAS
+// ==========================
+
+client.on("guildMemberAdd", async member => {
+  try {
+    // Busca el canal por nombre
+    const channel = member.guild.channels.cache.find(
+      channel =>
+        channel.type === ChannelType.GuildText &&
+        channel.name === "👋・bienvenida"
+    );
+
+    if (!channel) {
+      console.log("⚠️ No existe el canal 👋・bienvenida.");
+      return;
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0x6f42c1)
+      .setTitle("⛩️ ¡Bienvenido a Kage!")
+      .setDescription(
+        `👋 ¡Bienvenido/a ${member}!\n\n` +
+        `⚔️ Esperamos que disfrutes de Kage.\n` +
+        `📜 No olvides leer las reglas.\n\n` +
+        `👥 Ahora somos **${member.guild.memberCount}** miembros.`
+      )
+      .setThumbnail(
+        member.user.displayAvatarURL({ size: 256 })
+      )
+      .setFooter({
+        text: "Kage • Community"
+      })
+      .setTimestamp();
+
+    await channel.send({
+      content: `${member}`,
+      embeds: [embed]
+    });
+
+    console.log(`👋 Bienvenida enviada a ${member.user.tag}`);
+  } catch (error) {
+    console.error("❌ Error en bienvenida:", error);
+  }
+});
+
+// ==========================
+// 🚪 DESPEDIDAS
+// ==========================
+
+client.on("guildMemberRemove", async member => {
+  try {
+    const channel = member.guild.channels.cache.find(
+      channel =>
+        channel.type === ChannelType.GuildText &&
+        channel.name === "🚪・despedida"
+    );
+
+    if (!channel) {
+      console.log("⚠️ No existe el canal 🚪・despedida.");
+      return;
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0xc0392b)
+      .setTitle("🚪 Un miembro se ha ido")
+      .setDescription(
+        `😢 **${member.user.username}** ha abandonado Kage.\n\n` +
+        `👋 ¡Esperamos volver a verte!`
+      )
+      .setThumbnail(
+        member.user.displayAvatarURL({ size: 256 })
+      )
+      .setFooter({
+        text: "Kage • Community"
+      })
+      .setTimestamp();
+
+    await channel.send({
+      embeds: [embed]
+    });
+
+    console.log(`🚪 Despedida enviada para ${member.user.tag}`);
+  } catch (error) {
+    console.error("❌ Error en despedida:", error);
+  }
+});
+
+// ==========================
+// 🎫 TICKETS
+// ==========================
 
 client.on("interactionCreate", async interaction => {
-  if (!interaction.isChatInputCommand() || interaction.commandName !== "setup") return;
+  if (!interaction.isChatInputCommand()) return;
 
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
-    return interaction.reply({
-      content: "❌ Necesitas Administrador para usar este comando.",
-      ephemeral: true
-    });
-  }
-
-  await interaction.deferReply({ ephemeral: true });
+  if (interaction.commandName !== "ticket") return;
 
   try {
-    const guild = await client.guilds.fetch(guildId);
-    await guild.roles.fetch();
-    await guild.channels.fetch();
+    const guild = interaction.guild;
+    const member = interaction.member;
 
-    await setupGuild(guild);
+    // Comprobar si ya tiene ticket
+    const existingTicket = guild.channels.cache.find(
+      channel =>
+        channel.type === ChannelType.GuildText &&
+        channel.name === `ticket-${member.user.id}`
+    );
 
-    await interaction.editReply(
-      "✅ **Kage configurado.** Se crearon las categorías, canales y roles que faltaban. No se borraron canales existentes."
+    if (existingTicket) {
+      return interaction.reply({
+        content: `🎫 Ya tienes un ticket abierto: ${existingTicket}`,
+        flags: 64
+      });
+    }
+
+    // Buscar categoría SUPPORT
+    let category = guild.channels.cache.find(
+      channel =>
+        channel.type === ChannelType.GuildCategory &&
+        channel.name === "🛠️・SUPPORT"
+    );
+
+    // Si no existe, crearla
+    if (!category) {
+      category = await guild.channels.create({
+        name: "🛠️・SUPPORT",
+        type: ChannelType.GuildCategory
+      });
+    }
+
+    // Buscar rol de Staff
+    const staffRole = guild.roles.cache.find(
+      role =>
+        role.name === "ADMIN" ||
+        role.name === "MODERATOR"
+    );
+
+    // Crear permisos
+    const permissions = [
+      {
+        id: guild.roles.everyone.id,
+        deny: [PermissionFlagsBits.ViewChannel]
+      },
+      {
+        id: member.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory
+        ]
+      }
+    ];
+
+    if (staffRole) {
+      permissions.push({
+        id: staffRole.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory
+        ]
+      });
+    }
+
+    // Crear canal
+    const ticket = await guild.channels.create({
+      name: `ticket-${member.user.id}`,
+      type: ChannelType.GuildText,
+      parent: category.id,
+      permissionOverwrites: permissions,
+      reason: `Ticket creado por ${member.user.tag}`
+    });
+
+    // Embed del ticket
+    const embed = new EmbedBuilder()
+      .setColor(0x6f42c1)
+      .setTitle("🎫 Ticket de soporte")
+      .setDescription(
+        `Hola ${member} 👋\n\n` +
+        `Explica aquí tu problema o consulta.\n` +
+        `Un miembro del Staff te atenderá lo antes posible.\n\n` +
+        `🔒 Este canal es privado.`
+      )
+      .setFooter({
+        text: "Kage Support"
+      })
+      .setTimestamp();
+
+    await ticket.send({
+      content: staffRole
+        ? `${member} <@&${staffRole.id}>`
+        : `${member}`,
+      embeds: [embed]
+    });
+
+    await interaction.reply({
+      content: `✅ Tu ticket ha sido creado: ${ticket}`,
+      flags: 64
+    });
+
+    console.log(
+      `🎫 Ticket creado por ${member.user.tag}`
     );
   } catch (error) {
-    console.error(error);
-    await interaction.editReply(
-      "❌ No pude completar la configuración. Revisa la consola y que el bot tenga permisos suficientes."
-    );
-  }
-});
+    console.error("❌ Error creando ticket:", error);
 
-client.login(token);import {
-  Client,
-  GatewayIntentBits,
-  REST,
-  Routes,
-  SlashCommandBuilder,
-  PermissionFlagsBits,
-  ChannelType,
-  OverwriteType
-} from "discord.js";
-
-const token = process.env.DISCORD_TOKEN;
-const guildId = process.env.GUILD_ID;
-
-if (!token || !guildId) {
-  throw new Error("Faltan DISCORD_TOKEN o GUILD_ID en las variables de entorno.");
-}
-
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
-});
-
-const command = new SlashCommandBuilder()
-  .setName("setup")
-  .setDescription("Crea la estructura competitiva de Kage.")
-  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
-
-async function registerCommand() {
-  const rest = new REST({ version: "10" }).setToken(token);
-  await rest.put(
-    Routes.applicationGuildCommands(client.user.id, guildId),
-    { body: [command.toJSON()] }
-  );
-}
-
-const roleSpecs = [
-  ["OWNER", 0x111111],
-  ["DIRECTOR", 0x6f42c1],
-  ["ADMIN", 0xc0392b],
-  ["MODERATOR", 0x2980b9],
-  ["HELPER", 0x27ae60],
-  ["TOURNAMENT STAFF", 0xf39c12],
-  ["COMPETITIVE", 0xe74c3c],
-  ["BOOSTER", 0x9b59b6],
-  ["PLAYER", 0x3498db],
-  ["MEMBER", 0x95a5a6]
-];
-
-const structure = [
-  {
-    name: "⛩️・ENTRADA",
-    channels: [
-      ["👋・bienvenida", "text"],
-      ["📜・reglas", "text"],
-      ["✅・verificacion", "text"],
-      ["📢・anuncios", "text"],
-      ["🎭・roles", "text"]
-    ]
-  },
-  {
-    name: "⚔️・COMPETITIVE",
-    channels: [
-      ["💬・chat-competitive", "text"],
-      ["🎯・buscando-team", "text"],
-      ["🏆・torneos", "text"],
-      ["📊・rankings", "text"],
-      ["📋・resultados", "text"],
-      ["🔥・clips", "text"]
-    ]
-  },
-  {
-    name: "🎮・COMMUNITY",
-    channels: [
-      ["💭・general", "text"],
-      ["😂・memes", "text"],
-      ["📸・media", "text"],
-      ["🎵・musica", "text"]
-    ]
-  },
-  {
-    name: "🎧・VOICE",
-    channels: [
-      ["🔊・Lobby", "voice"],
-      ["⚔️・Competitive I", "voice"],
-      ["⚔️・Competitive II", "voice"],
-      ["🏆・Tournament", "voice"],
-      ["💤・AFK", "voice"]
-    ]
-  },
-  {
-    name: "🛠️・SUPPORT",
-    channels: [
-      ["🎫・tickets", "text"],
-      ["❓・soporte", "text"],
-      ["🚨・reportes", "text"]
-    ]
-  },
-  {
-    name: "🔒・STAFF",
-    staffOnly: true,
-    channels: [
-      ["💼・staff-chat", "text"],
-      ["📋・logs", "text"],
-      ["⚖️・sanciones", "text"],
-      ["🚨・staff-reports", "text"]
-    ]
-  }
-];
-
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-async function ensureRole(guild, name, color) {
-  let role = guild.roles.cache.find(r => r.name === name);
-  if (!role) role = await guild.roles.create({ name, color, reason: "Kage setup" });
-  return role;
-}
-
-async function ensureCategory(guild, name, staffOnly, staffRole) {
-  let category = guild.channels.cache.find(
-    c => c.type === ChannelType.GuildCategory && c.name === name
-  );
-
-  if (!category) {
-    category = await guild.channels.create({
-      name,
-      type: ChannelType.GuildCategory,
-      reason: "Kage setup"
-    });
-  }
-
-  if (staffOnly && staffRole) {
-    await category.permissionOverwrites.edit(guild.roles.everyone, {
-      ViewChannel: false
-    });
-    await category.permissionOverwrites.edit(staffRole, {
-      ViewChannel: true,
-      SendMessages: true
-    });
-  }
-
-  return category;
-}
-
-async function ensureChannel(guild, category, name, kind, staffOnly, staffRole) {
-  let channel = guild.channels.cache.find(
-    c => c.parentId === category.id && c.name === name
-  );
-
-  if (!channel) {
-    channel = await guild.channels.create({
-      name,
-      type: kind === "voice" ? ChannelType.GuildVoice : ChannelType.GuildText,
-      parent: category.id,
-      reason: "Kage setup"
-    });
-  }
-
-  if (staffOnly && staffRole && channel.type === ChannelType.GuildText) {
-    await channel.permissionOverwrites.edit(guild.roles.everyone, {
-      ViewChannel: false
-    });
-    await channel.permissionOverwrites.edit(staffRole, {
-      ViewChannel: true,
-      SendMessages: true,
-      ReadMessageHistory: true
-    });
-  }
-
-  return channel;
-}
-
-async function setupGuild(guild) {
-  const roles = {};
-  for (const [name, color] of roleSpecs) {
-    roles[name] = await ensureRole(guild, name, color);
-    await sleep(150);
-  }
-
-  const staffRole = roles["ADMIN"];
-
-  for (const section of structure) {
-    const category = await ensureCategory(guild, section.name, section.staffOnly, staffRole);
-
-    for (const [name, kind] of section.channels) {
-      await ensureChannel(
-        guild,
-        category,
-        name,
-        kind,
-        section.staffOnly,
-        staffRole
-      );
-      await sleep(150);
+    if (!interaction.replied) {
+      await interaction.reply({
+        content:
+          "❌ No pude crear el ticket. Comprueba que el bot tenga permisos suficientes.",
+        flags: 64
+      });
     }
   }
-
-  return roles;
-}
-
-client.once("ready", async () => {
-  console.log(`Conectado como ${client.user.tag}`);
-  await registerCommand();
-  console.log("Comando /setup registrado.");
 });
 
-client.on("interactionCreate", async interaction => {
-  if (!interaction.isChatInputCommand() || interaction.commandName !== "setup") return;
-
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
-    return interaction.reply({
-      content: "❌ Necesitas Administrador para usar este comando.",
-      ephemeral: true
-    });
-  }
-
-  await interaction.deferReply({ ephemeral: true });
-
-  try {
-    const guild = await client.guilds.fetch(guildId);
-    await guild.roles.fetch();
-    await guild.channels.fetch();
-
-    await setupGuild(guild);
-
-    await interaction.editReply(
-      "✅ **Kage configurado.** Se crearon las categorías, canales y roles que faltaban. No se borraron canales existentes."
-    );
-  } catch (error) {
-    console.error(error);
-    await interaction.editReply(
-      "❌ No pude completar la configuración. Revisa la consola y que el bot tenga permisos suficientes."
-    );
-  }
-});
-
-client.login(token);import {
-  Client,
-  GatewayIntentBits,
-  REST,
-  Routes,
-  SlashCommandBuilder,
-  PermissionFlagsBits,
-  ChannelType,
-  OverwriteType
-} from "discord.js";
-
-const token = process.env.DISCORD_TOKEN;
-const guildId = process.env.GUILD_ID;
-
-if (!token || !guildId) {
-  throw new Error("Faltan DISCORD_TOKEN o GUILD_ID en las variables de entorno.");
-}
-
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
-});
-
-const command = new SlashCommandBuilder()
-  .setName("setup")
-  .setDescription("Crea la estructura competitiva de Kage.")
-  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
-
-async function registerCommand() {
-  const rest = new REST({ version: "10" }).setToken(token);
-  await rest.put(
-    Routes.applicationGuildCommands(client.user.id, guildId),
-    { body: [command.toJSON()] }
-  );
-}
-
-const roleSpecs = [
-  ["OWNER", 0x111111],
-  ["DIRECTOR", 0x6f42c1],
-  ["ADMIN", 0xc0392b],
-  ["MODERATOR", 0x2980b9],
-  ["HELPER", 0x27ae60],
-  ["TOURNAMENT STAFF", 0xf39c12],
-  ["COMPETITIVE", 0xe74c3c],
-  ["BOOSTER", 0x9b59b6],
-  ["PLAYER", 0x3498db],
-  ["MEMBER", 0x95a5a6]
-];
-
-const structure = [
-  {
-    name: "⛩️・ENTRADA",
-    channels: [
-      ["👋・bienvenida", "text"],
-      ["📜・reglas", "text"],
-      ["✅・verificacion", "text"],
-      ["📢・anuncios", "text"],
-      ["🎭・roles", "text"]
-    ]
-  },
-  {
-    name: "⚔️・COMPETITIVE",
-    channels: [
-      ["💬・chat-competitive", "text"],
-      ["🎯・buscando-team", "text"],
-      ["🏆・torneos", "text"],
-      ["📊・rankings", "text"],
-      ["📋・resultados", "text"],
-      ["🔥・clips", "text"]
-    ]
-  },
-  {
-    name: "🎮・COMMUNITY",
-    channels: [
-      ["💭・general", "text"],
-      ["😂・memes", "text"],
-      ["📸・media", "text"],
-      ["🎵・musica", "text"]
-    ]
-  },
-  {
-    name: "🎧・VOICE",
-    channels: [
-      ["🔊・Lobby", "voice"],
-      ["⚔️・Competitive I", "voice"],
-      ["⚔️・Competitive II", "voice"],
-      ["🏆・Tournament", "voice"],
-      ["💤・AFK", "voice"]
-    ]
-  },
-  {
-    name: "🛠️・SUPPORT",
-    channels: [
-      ["🎫・tickets", "text"],
-      ["❓・soporte", "text"],
-      ["🚨・reportes", "text"]
-    ]
-  },
-  {
-    name: "🔒・STAFF",
-    staffOnly: true,
-    channels: [
-      ["💼・staff-chat", "text"],
-      ["📋・logs", "text"],
-      ["⚖️・sanciones", "text"],
-      ["🚨・staff-reports", "text"]
-    ]
-  }
-];
-
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-async function ensureRole(guild, name, color) {
-  let role = guild.roles.cache.find(r => r.name === name);
-  if (!role) role = await guild.roles.create({ name, color, reason: "Kage setup" });
-  return role;
-}
-
-async function ensureCategory(guild, name, staffOnly, staffRole) {
-  let category = guild.channels.cache.find(
-    c => c.type === ChannelType.GuildCategory && c.name === name
-  );
-
-  if (!category) {
-    category = await guild.channels.create({
-      name,
-      type: ChannelType.GuildCategory,
-      reason: "Kage setup"
-    });
-  }
-
-  if (staffOnly && staffRole) {
-    await category.permissionOverwrites.edit(guild.roles.everyone, {
-      ViewChannel: false
-    });
-    await category.permissionOverwrites.edit(staffRole, {
-      ViewChannel: true,
-      SendMessages: true
-    });
-  }
-
-  return category;
-}
-
-async function ensureChannel(guild, category, name, kind, staffOnly, staffRole) {
-  let channel = guild.channels.cache.find(
-    c => c.parentId === category.id && c.name === name
-  );
-
-  if (!channel) {
-    channel = await guild.channels.create({
-      name,
-      type: kind === "voice" ? ChannelType.GuildVoice : ChannelType.GuildText,
-      parent: category.id,
-      reason: "Kage setup"
-    });
-  }
-
-  if (staffOnly && staffRole && channel.type === ChannelType.GuildText) {
-    await channel.permissionOverwrites.edit(guild.roles.everyone, {
-      ViewChannel: false
-    });
-    await channel.permissionOverwrites.edit(staffRole, {
-      ViewChannel: true,
-      SendMessages: true,
-      ReadMessageHistory: true
-    });
-  }
-
-  return channel;
-}
-
-async function setupGuild(guild) {
-  const roles = {};
-  for (const [name, color] of roleSpecs) {
-    roles[name] = await ensureRole(guild, name, color);
-    await sleep(150);
-  }
-
-  const staffRole = roles["ADMIN"];
-
-  for (const section of structure) {
-    const category = await ensureCategory(guild, section.name, section.staffOnly, staffRole);
-
-    for (const [name, kind] of section.channels) {
-      await ensureChannel(
-        guild,
-        category,
-        name,
-        kind,
-        section.staffOnly,
-        staffRole
-      );
-      await sleep(150);
-    }
-  }
-
-  return roles;
-}
-
-client.once("ready", async () => {
-  console.log(`Conectado como ${client.user.tag}`);
-  await registerCommand();
-  console.log("Comando /setup registrado.");
-});
-
-client.on("interactionCreate", async interaction => {
-  if (!interaction.isChatInputCommand() || interaction.commandName !== "setup") return;
-
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
-    return interaction.reply({
-      content: "❌ Necesitas Administrador para usar este comando.",
-      ephemeral: true
-    });
-  }
-
-  await interaction.deferReply({ ephemeral: true });
-
-  try {
-    const guild = await client.guilds.fetch(guildId);
-    await guild.roles.fetch();
-    await guild.channels.fetch();
-
-    await setupGuild(guild);
-
-    await interaction.editReply(
-      "✅ **Kage configurado.** Se crearon las categorías, canales y roles que faltaban. No se borraron canales existentes."
-    );
-  } catch (error) {
-    console.error(error);
-    await interaction.editReply(
-      "❌ No pude completar la configuración. Revisa la consola y que el bot tenga permisos suficientes."
-    );
-  }
-});
+// ==========================
+// LOGIN
+// ==========================
 
 client.login(token);
